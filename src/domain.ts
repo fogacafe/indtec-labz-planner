@@ -1,5 +1,6 @@
 export type Priority = 'high' | 'medium' | 'low'
 export type DemandType = 'IT' | 'Business'
+export type DemandKind = 'feature' | 'fix'
 export type DemandStatus = 'backlog' | 'refinement' | 'todo' | 'dev' | 'waiting-uat' | 'uat' | 'waiting-prod' | 'prod' | 'assisted-prod'
 
 export type Demand = {
@@ -13,6 +14,7 @@ export type Demand = {
   status: DemandStatus
   priority: Priority
   type: DemandType
+  kind: DemandKind
 }
 
 export type PlannerState = {
@@ -35,6 +37,11 @@ export const priorityLabels: Record<Priority, string> = {
   high: 'High',
   medium: 'Medium',
   low: 'Low',
+}
+
+export const kindLabels: Record<DemandKind, string> = {
+  feature: 'Feature',
+  fix: 'Fix',
 }
 
 export function addDays(date: string, days: number) {
