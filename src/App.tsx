@@ -5,6 +5,7 @@ import { endDateOf, kindLabels, priorityLabels, sprintCount, statusLabels } from
 import { demoState } from './demo'
 import { LocalStoragePlannerStorage } from './storage'
 import './styles.css'
+import './planner-refinement.css'
 
 const storage = new LocalStoragePlannerStorage()
 const year = 2026
