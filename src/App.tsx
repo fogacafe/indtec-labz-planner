@@ -10,6 +10,7 @@ import './planner-refinement.css'
 const storage = new LocalStoragePlannerStorage()
 const year = 2026
 const weekMs = 7 * 86_400_000
+const dayMs = 86_400_000
 const yearStart = new Date(`${year}-01-01T12:00:00`)
 const weeks = Array.from({ length: 53 }, (_, index) => index + 1)
 const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
@@ -25,6 +26,25 @@ function initialState(): PlannerState {
 function weekOf(date: string) { return Math.max(1, Math.min(53, Math.floor((new Date(`${date}T12:00:00`).getTime() - yearStart.getTime()) / weekMs) + 1)) }
 function isLeave(title: string) { return /f[eé]rias|vacation|licen[cs]a|license/i.test(title) }
 function classFor(value: string) { return value.toLowerCase().replaceAll(' ', '-').replaceAll('/', '-') }
+function nextDay(date: string) {
+  const value = new Date(`${date}T12:00:00`)
+  return new Date(value.getTime() + dayMs).toISOString().slice(0, 10)
+}
+function scheduleOwner(demands: Demand[], owner: string, orderedIds: string[], anchorDate: string) {
+  const byId = new Map(demands.map(demand => [demand.id, demand]))
+  let nextStart = anchorDate
+  const scheduled = new Map<string, Demand>()
+
+  for (const id of orderedIds) {
+    const demand = byId.get(id)
+    if (!demand) continue
+    const nextDemand = { ...demand, responsible: owner, startDate: nextStart }
+    scheduled.set(id, nextDemand)
+    nextStart = nextDay(endDateOf(nextDemand))
+  }
+
+  return demands.map(demand => scheduled.get(demand.id) ?? demand)
+}
 
 export default function App() {
   const [state,setState] = useState<PlannerState>(initialState)
@@ -47,9 +67,36 @@ export default function App() {
 
   const dropOn = (targetId:string) => {
     if (!dragged || dragged===targetId) return
-    const source = state.demands.find(d=>d.id===dragged); const target = state.demands.find(d=>d.id===targetId)
+
+    const source = state.demands.find(d=>d.id===dragged)
+    const target = state.demands.find(d=>d.id===targetId)
     if (!source || !target) return
-    persist({demands:state.demands.map(d=>d.id===source.id?{...d,startDate:target.startDate,responsible:target.responsible}:d.id===target.id?{...d,startDate:source.startDate,responsible:source.responsible}:d)})
+
+    const sourceOwner = source.responsible
+    const targetOwner = target.responsible
+    const ownerDemands = (owner:string) => state.demands
+      .filter(d=>d.responsible===owner && d.id!==source.id)
+      .sort((a,b)=>a.startDate.localeCompare(b.startDate))
+
+    const targetQueue = ownerDemands(targetOwner)
+    const targetIndex = Math.max(0, targetQueue.findIndex(d=>d.id===target.id))
+    const targetAnchor = targetQueue[0]?.startDate ?? target.startDate
+    const targetIds = targetQueue.map(d=>d.id)
+    targetIds.splice(targetIndex,0,source.id)
+
+    let nextDemands = state.demands.map(d=>d.id===source.id?{...d,responsible:targetOwner}:d)
+    nextDemands = scheduleOwner(nextDemands,targetOwner,targetIds,targetAnchor)
+
+    if (sourceOwner!==targetOwner) {
+      const sourceQueue = state.demands
+        .filter(d=>d.responsible===sourceOwner && d.id!==source.id)
+        .sort((a,b)=>a.startDate.localeCompare(b.startDate))
+      if (sourceQueue.length>0) {
+        nextDemands = scheduleOwner(nextDemands,sourceOwner,sourceQueue.map(d=>d.id),sourceQueue[0].startDate)
+      }
+    }
+
+    persist({demands:nextDemands})
     setDragged(null)
   }
 
